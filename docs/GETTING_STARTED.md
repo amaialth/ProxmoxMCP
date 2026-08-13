@@ -125,14 +125,14 @@ Add the server to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "proxmox-local": {
-      "command": "/Users/creativestudio14/.bun/bin/bun",
-      "args": ["run", "/Users/creativestudio14/Projects/ProxmoxMCP/src/index.ts", "--stdio"],
+      "command": "bun",
+      "args": ["run", "PATH_TO/index.ts", "--stdio"],
       "env": {
-        "PROXMOX_HOST": "192.168.1.21",
-        "PROXMOX_USER": "root@pam",
+        "PROXMOX_HOST": "IP_ADDRESS",
+        "PROXMOX_USER": "mcp-bot@pve",
         "PROXMOX_TOKEN_NAME": "mcp",
-        "PROXMOX_TOKEN_VALUE": "ae95648d-2eca-4caf-be48-2b7854094aa5",
-        "PROXMOX_VERIFY_SSL": "false"
+        "PROXMOX_TOKEN_VALUE": "XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        "PROXMOX_VERIFY_SSL": "true"
       }
     }
   }
