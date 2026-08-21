@@ -13,6 +13,7 @@ import { poolsTools } from '../tools/pools.js';
 import { qemuTools } from '../tools/qemu.js';
 import { sdnTools } from '../tools/sdn.js';
 import { storageTools } from '../tools/storage.js';
+import { guestServicesTools } from '../tools/guest-services.js';
 
 export const allTools: ProxmoxTool[] = [
   ...accessTools,
@@ -26,6 +27,7 @@ export const allTools: ProxmoxTool[] = [
   ...qemuTools,
   ...sdnTools,
   ...storageTools,
+  ...guestServicesTools,
 ];
 
 export const toolMap = new Map<string, ProxmoxTool>();

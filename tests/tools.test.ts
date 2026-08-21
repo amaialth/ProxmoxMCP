@@ -13,21 +13,21 @@ import { qemuTools } from '../src/tools/qemu.js';
 import { sdnTools } from '../src/tools/sdn.js';
 import { storageTools } from '../src/tools/storage.js';
 
-describe('Comprehensive MCP Tools Suite (All 294 Tools)', () => {
-  it('should have correct tool counts across all 11 modules', () => {
+describe('Comprehensive MCP Tools Suite (All 351 Tools)', () => {
+  it('should have correct tool counts across all modules', () => {
     assert.strictEqual(accessTools.length, 27, 'Access module tool count');
     assert.strictEqual(backupTools.length, 11, 'Backup module tool count');
     assert.strictEqual(clusterTools.length, 46, 'Cluster module tool count');
     assert.strictEqual(firewallTools.length, 32, 'Firewall module tool count');
     assert.strictEqual(haTools.length, 14, 'HA module tool count');
-    assert.strictEqual(lxcTools.length, 26, 'LXC module tool count');
+    assert.strictEqual(lxcTools.length, 27, 'LXC module tool count'); // +1 lxc_agent_exec_sync
     assert.strictEqual(nodesTools.length, 41, 'Nodes module tool count');
     assert.strictEqual(poolsTools.length, 14, 'Pools module tool count');
     assert.strictEqual(qemuTools.length, 40, 'QEMU module tool count');
     assert.strictEqual(sdnTools.length, 17, 'SDN module tool count');
     assert.strictEqual(storageTools.length, 26, 'Storage module tool count');
-
-    assert.strictEqual(allTools.length, 294, 'Total tool count should be exactly 294 unique tools');
+    // guest-services adds 28 vm_* + 28 lxc_* Docker/service tools = 56
+    assert.strictEqual(allTools.length, 351, 'Total tool count (294 original + 1 lxc_agent_exec_sync + 56 guest-services)');
   });
 
   it('should verify every tool has valid metadata, non-empty description, and execute function', () => {
