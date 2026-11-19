@@ -1,9 +1,9 @@
 /**
  * guest-services.ts
  *
- * High-level tools for managing services and containers INSIDE VMs and LXC
- * containers via the QEMU Guest Agent or LXC agent. These tools wrap the
- * low-level vmAgentExecSync / lxcAgentExecSync functions and expose
+ * High-level tools for managing services and containers INSIDE QEMU VMs via
+ * the QEMU Guest Agent. These tools wrap the low-level vmAgentExecSync
+ * function and expose
  * purpose-built interfaces for Docker, Docker Compose, systemd, and arbitrary
  * shell commands so an AI agent does not need to know every CLI flag.
  *
@@ -11,14 +11,12 @@
  *   - qemu-guest-agent must be installed and running inside the VM
  *   - The VM config must have agent: enabled=1
  *
- * Requirements (LXC containers):
- *   - qemu-guest-agent must be installed inside the container
- *   - The LXC config must have features: nesting=1 (for Docker)
- *   - The container config must have agent: 1
+ * LXC containers are not supported: Proxmox exposes no API to run commands
+ * inside a container.
  */
 
 import { formatResponse } from '../proxmox/client.js';
-import { vmAgentExecSync, lxcAgentExecSync, GuestExecOptions } from '../proxmox/guest-exec.js';
+import { vmAgentExecSync, GuestExecOptions } from '../proxmox/guest-exec.js';
 import { ProxmoxTool } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -31,6 +29,7 @@ function makeResult(res: Awaited<ReturnType<typeof vmAgentExecSync>>) {
     timedOut: res.timedOut,
     stdout: res.stdout,
     stderr: res.stderr,
+    ...(res.truncated ? { truncated: true } : {}),
     success: res.exitcode === 0 && !res.timedOut,
   });
 }
@@ -40,11 +39,6 @@ const vmBaseProps = {
   vmid: { type: 'integer', description: 'VM ID' },
 };
 
-const lxcBaseProps = {
-  node: { type: 'string', description: 'Proxmox node name' },
-  vmid: { type: 'integer', description: 'LXC container ID' },
-};
-
 const timeoutProp = {
   timeout_seconds: { type: 'integer', description: 'Command timeout in seconds (default 60)', default: 60 },
 };
@@ -52,19 +46,16 @@ const timeoutProp = {
 type ExecFn = (opts: GuestExecOptions) => ReturnType<typeof vmAgentExecSync>;
 
 // ---------------------------------------------------------------------------
-// Tool factory - produces Docker + service tools for vm_ and lxc_ prefixes
+// Tool factory - produces Docker + service tools for the vm_ prefix
 // ---------------------------------------------------------------------------
 
 function makeDockerTools(
-  prefix: 'vm' | 'lxc',
+  prefix: 'vm',
   baseProps: Record<string, unknown>,
   execFn: ExecFn,
 ): ProxmoxTool[] {
-  const label = prefix === 'vm' ? 'VM' : 'LXC container';
-  const agentNote =
-    prefix === 'vm'
-      ? 'Requires qemu-guest-agent running inside the VM and agent: enabled=1 in VM config.'
-      : 'Requires qemu-guest-agent inside the container, agent: 1 in CT config, and features: nesting=1 for Docker.';
+  const label = 'VM';
+  const agentNote = 'Requires qemu-guest-agent running inside the VM and agent: enabled=1 in VM config.';
 
   async function exec(args: Record<string, any>, cmd: string, defaultTimeout = 60) {
     const opts: GuestExecOptions = {
@@ -657,13 +648,10 @@ function makeDockerTools(
 }
 
 // ---------------------------------------------------------------------------
-// Instantiate for QEMU VMs and LXC containers
+// Instantiate for QEMU VMs
 // ---------------------------------------------------------------------------
 
-const vmGuestTools = makeDockerTools('vm', vmBaseProps, vmAgentExecSync);
-const lxcGuestTools = makeDockerTools('lxc', lxcBaseProps, lxcAgentExecSync);
-
-export const guestServicesTools: ProxmoxTool[] = [
-  ...vmGuestTools,
-  ...lxcGuestTools,
-];
+// Only QEMU VMs are supported. The Proxmox API has no endpoint for running
+// commands inside LXC containers (`pct exec` is a host-only CLI), so lxc_*
+// variants of these tools cannot work and are intentionally not generated.
+export const guestServicesTools: ProxmoxTool[] = makeDockerTools('vm', vmBaseProps, vmAgentExecSync);

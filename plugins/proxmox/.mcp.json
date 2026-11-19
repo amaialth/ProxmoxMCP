@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "proxmox": {
+      "command": "npx",
+      "args": ["-y", "@amailath/proxmox-mcp-server@^2.0.0", "--stdio"],
+      "env": {
+        "PROXMOX_HOST": "${user_config.host}",
+        "PROXMOX_TOKEN_NAME": "${user_config.token_id}",
+        "PROXMOX_TOKEN_VALUE": "${user_config.token_secret}",
+        "PROXMOX_VERIFY_SSL": "${user_config.verify_ssl}",
+        "PROXMOX_READ_ONLY": "${user_config.read_only}",
+        "PROXMOX_MODULES": "${user_config.modules}"
+      }
+    }
+  }
+}

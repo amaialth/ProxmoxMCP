@@ -1,39 +1,66 @@
 {
-  "name": "proxmox-mcp-server",
-  "version": "1.0.0",
-  "description": "Enterprise-grade Proxmox VE Model Context Protocol (MCP) server in TypeScript, Elysia, and Bun",
-  "main": "src/index.ts",
-  "module": "src/index.ts",
+  "name": "@amailath/proxmox-mcp-server",
+  "version": "2.0.0",
+  "description": "Proxmox VE MCP server for Claude and other AI clients: 324 tools for nodes, VMs, containers, storage, network, firewall, backups, HA and Docker inside VMs.",
   "type": "module",
+  "main": "dist/index.js",
   "bin": {
-    "proxmox-mcp": "./src/index.ts"
+    "proxmox-mcp": "dist/index.js",
+    "proxmox-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "docs/",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20",
+    "bun": ">=1.1"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start:stdio": "bun run src/index.ts --stdio",
+    "build": "bun build src/index.ts --outdir dist --target node",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run typecheck && bun test && bun run build",
+    "docs": "bun run scripts/generate-tools-reference.ts"
   },
   "keywords": [
     "proxmox",
+    "proxmox-ve",
     "mcp",
-    "elysia",
-    "bun",
-    "typescript",
-    "model-context-protocol"
+    "model-context-protocol",
+    "mcp-server",
+    "claude",
+    "homelab",
+    "virtualization",
+    "kvm",
+    "lxc",
+    "docker"
   ],
-  "author": "Antigravity Studio",
+  "author": "Anbumani - CreativeStudio14.com (https://creativestudio14.com)",
   "license": "MIT",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.6.1",
-    "@sinclair/typebox": "^0.34.28",
-    "dotenv": "^16.4.7",
-    "elysia": "^1.2.22",
-    "zod": "^3.24.2"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amailath/ProxmoxMCP.git"
+  },
+  "homepage": "https://github.com/amailath/ProxmoxMCP#readme",
+  "bugs": {
+    "url": "https://github.com/amailath/ProxmoxMCP/issues"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@sinclair/typebox": "^0.34.28",
     "@types/bun": "^1.2.4",
-    "typescript": "^5.7.3"
+    "dotenv": "^16.4.7",
+    "elysia": "^1.2.22",
+    "typescript": "^5.7.3",
+    "zod": "^3.24.2"
   }
 }

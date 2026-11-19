@@ -1,5 +1,5 @@
 import { getProxmoxClient, formatResponse } from '../proxmox/client.js';
-import { vmAgentExecSync, vmAgentFileReadDecoded, vmAgentFileWriteEncoded, lxcExecSync } from '../proxmox/guest-exec.js';
+import { vmAgentExecSync, vmAgentFileReadDecoded, vmAgentFileWriteEncoded, guestText } from '../proxmox/guest-exec.js';
 import { ProxmoxTool } from './types.js';
 
 export const qemuTools: ProxmoxTool[] = [
@@ -1723,9 +1723,10 @@ export const qemuTools: ProxmoxTool[] = [
     execute: async (args: Record<string, any>) => {
     const client = getProxmoxClient();
     const res = await client.get(`/nodes/${args.node}/qemu/${args.vmid}/agent/exec-status`, { pid: args.pid });
-    if (res && (res['out-data'] || res['err-data'])) {
-      if (res['out-data']) res.stdout = Buffer.from(res['out-data'], 'base64').toString('utf-8');
-      if (res['err-data']) res.stderr = Buffer.from(res['err-data'], 'base64').toString('utf-8');
+    // Proxmox already returns out-data/err-data as plain text; expose them as stdout/stderr too.
+    if (res && typeof res === 'object') {
+      if (res['out-data'] !== undefined) res.stdout = guestText(res['out-data']);
+      if (res['err-data'] !== undefined) res.stderr = guestText(res['err-data']);
     }
     return formatResponse(res);
   }
@@ -1759,7 +1760,10 @@ export const qemuTools: ProxmoxTool[] = [
 },
     execute: async (args: Record<string, any>) => {
     const res = await vmAgentFileReadDecoded(String(args.node), Number(args.vmid), String(args.file));
-    return formatResponse(res.content || res.raw);
+    if (res.truncated) {
+      return formatResponse({ content: res.content, truncated: true, note: 'File larger than the guest agent read limit; content is truncated.' });
+    }
+    return res.content;
   }
   },
   {
@@ -1770,7 +1774,14 @@ export const qemuTools: ProxmoxTool[] = [
     "properties": {
         "content": {
             "title": "Content",
-            "type": "string"
+            "type": "string",
+            "description": "File content as plain text (or base64 if content_is_base64 is true)."
+        },
+        "content_is_base64": {
+            "title": "Content Is Base64",
+            "type": "boolean",
+            "default": false,
+            "description": "Set true only when content is already base64-encoded (e.g. binary files)."
         },
         "file": {
             "title": "File",
@@ -1800,7 +1811,7 @@ export const qemuTools: ProxmoxTool[] = [
       Number(args.vmid),
       String(args.file),
       String(args.content),
-      args.encode !== false
+      args.content_is_base64 === true
     );
     return formatResponse(res);
   }
@@ -2124,6 +2135,30 @@ export const qemuTools: ProxmoxTool[] = [
         useShell: args.use_shell !== false,
       });
       return formatResponse(res);
+    }
+  },
+  {
+    name: "vm_agent_ping",
+    description: "Check whether the QEMU guest agent inside a VM is responding.\n\nArgs:\n    node: The node name.\n    vmid: The VM ID.\n\nReturns { agentRunning: true } on success, or the reason it is not reachable (agent disabled in VM options, package not installed/running, VM stopped).",
+    module: "qemu",
+    parameters: {
+      type: "object",
+      properties: {
+        node: { type: "string", description: "Node name" },
+        vmid: { type: "integer", description: "VM ID" }
+      },
+      required: ["node", "vmid"]
+    },
+    execute: async (args: Record<string, any>) => {
+      const client = getProxmoxClient();
+      try {
+        await client.post(`/nodes/${encodeURIComponent(String(args.node))}/qemu/${Number(args.vmid)}/agent/ping`);
+        return formatResponse({ vmid: Number(args.vmid), agentRunning: true });
+      } catch (err: any) {
+        const message = err?.message || String(err);
+        if (/read-only mode/i.test(message)) throw err;
+        return formatResponse({ vmid: Number(args.vmid), agentRunning: false, reason: message });
+      }
     }
   },
 ];

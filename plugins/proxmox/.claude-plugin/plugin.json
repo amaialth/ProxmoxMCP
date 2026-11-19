@@ -1,0 +1,61 @@
+{
+  "name": "proxmox",
+  "version": "0.1.0",
+  "description": "Manage a Proxmox VE cluster from Claude: 324 tools for nodes, VMs, containers, storage, networking, backups and Docker inside VMs, plus guided setup, health checks, outage troubleshooting and safe-change workflows.",
+  "author": {
+    "name": "Anbumani - CreativeStudio14.com",
+    "url": "https://creativestudio14.com"
+  },
+  "homepage": "https://github.com/amailath/ProxmoxMCP",
+  "repository": "https://github.com/amailath/ProxmoxMCP",
+  "license": "MIT",
+  "keywords": [
+    "proxmox",
+    "homelab",
+    "virtualization",
+    "kvm",
+    "lxc",
+    "docker",
+    "infrastructure",
+    "mcp"
+  ],
+  "userConfig": {
+    "host": {
+      "type": "string",
+      "title": "Proxmox host",
+      "description": "IP address or hostname of your Proxmox server, e.g. 192.168.1.21 (port 8006 is used by default).",
+      "required": false
+    },
+    "token_id": {
+      "type": "string",
+      "title": "API token ID",
+      "description": "Full token ID as shown in Datacenter > Permissions > API Tokens, e.g. root@pam!mcp.",
+      "required": false
+    },
+    "token_secret": {
+      "type": "string",
+      "title": "API token secret",
+      "description": "The token's secret (a UUID). Stored securely; never shown to Claude.",
+      "sensitive": true,
+      "required": false
+    },
+    "verify_ssl": {
+      "type": "boolean",
+      "title": "Verify TLS certificate",
+      "description": "Turn on only if Proxmox has a trusted certificate. Leave off for the default self-signed one.",
+      "default": false
+    },
+    "read_only": {
+      "type": "boolean",
+      "title": "Read-only mode",
+      "description": "Hide every tool that can change the cluster. Good for monitoring-only use.",
+      "default": false
+    },
+    "modules": {
+      "type": "string",
+      "title": "Tool modules (optional)",
+      "description": "Comma-separated list to expose fewer tools, e.g. qemu,nodes,cluster,guest-services. Leave empty for all.",
+      "required": false
+    }
+  }
+}

@@ -1,176 +1,157 @@
 import { Elysia } from 'elysia';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { timingSafeEqual } from 'node:crypto';
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { getConfig } from './config.js';
-import { allTools, registerToolsToMcpServer, toolMap } from './mcp/registry.js';
+import { getExposedTools, toolMap, annotationsFor, toInputSchema } from './mcp/registry.js';
+import { createMcpServer, runStdioServer } from './mcp/server.js';
 import { getProxmoxClient } from './proxmox/client.js';
+import { VERSION } from './version.js';
 
-export function createMcpServer(): Server {
-  const server = new Server(
-    {
-      name: 'proxmox-mcp-server',
-      version: '1.0.0',
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
-  );
+export { createMcpServer, runStdioServer };
 
-  registerToolsToMcpServer(server);
-  return server;
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+
+export function isLoopback(host: string): boolean {
+  return LOOPBACK.has(host.trim().toLowerCase()) || host.startsWith('127.');
 }
 
-export async function runStdioServer(): Promise<void> {
-  const mcpServer = createMcpServer();
-  const transport = new StdioServerTransport();
-  await mcpServer.connect(transport);
-  console.error('[Proxmox MCP] Stdio server running successfully.');
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+function extractToken(request: Request): string | null {
+  const auth = request.headers.get('authorization');
+  if (auth && /^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, '').trim();
+  return request.headers.get('x-api-key');
 }
 
 export function createElysiaApp() {
   const config = getConfig();
-  const mcpServer = createMcpServer();
-  const activeSseTransports = new Map<string, SSEServerTransport>();
+  const exposedTools = getExposedTools();
+  const exposed = new Map(exposedTools.map((t) => [t.name, t]));
 
   const app = new Elysia()
+    // Bearer-token auth for everything except the bare status endpoint.
+    .onBeforeHandle(({ request, set, path }) => {
+      if (!config.authToken || path === '/') return;
+      const token = extractToken(request);
+      if (!token || !safeEqual(token, config.authToken)) {
+        set.status = 401;
+        set.headers['WWW-Authenticate'] = 'Bearer';
+        return { error: 'Unauthorized: send "Authorization: Bearer <PROXMOX_MCP_AUTH_TOKEN>".' };
+      }
+    })
     .get('/', () => ({
       status: 'ok',
       service: 'Proxmox MCP Server',
-      version: '1.0.0',
+      version: VERSION,
       framework: 'Elysia',
       readOnly: config.readOnly,
-      totalTools: allTools.length,
+      authRequired: Boolean(config.authToken),
+      totalTools: exposedTools.length,
       endpoints: {
+        mcp: '/mcp',
         health: '/health',
         metrics: '/metrics',
         tools: '/api/tools',
-        sse: '/sse',
-        mcpMessage: '/api/message',
       },
     }))
     .get('/health', async () => {
       const client = getProxmoxClient();
       let proxmoxConnected = false;
-      let clusterVersion: any = null;
+      let proxmoxVersion: any = null;
+      let error: string | undefined;
 
       try {
         if (config.host) {
-          clusterVersion = await client.get('/version');
+          proxmoxVersion = await client.get('/version');
           proxmoxConnected = true;
+        } else {
+          error = 'PROXMOX_HOST is not configured';
         }
       } catch (err: any) {
-        proxmoxConnected = false;
+        error = err?.message || String(err);
       }
 
       return {
         status: proxmoxConnected ? 'healthy' : 'degraded',
         uptimeSeconds: process.uptime(),
-        memoryUsage: process.memoryUsage(),
         config: {
           host: config.host || 'not configured',
           port: config.port,
+          protocol: config.protocol,
           readOnly: config.readOnly,
-          user: config.user,
           verifySsl: config.verifySsl,
+          authMode: config.tokenName ? 'api-token' : config.password ? 'password' : 'none',
         },
         proxmoxConnected,
-        proxmoxVersion: clusterVersion,
+        proxmoxVersion,
+        ...(error ? { error } : {}),
+        warnings: config.warnings,
         timestamp: new Date().toISOString(),
       };
     })
     .get('/metrics', () => ({
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      totalToolsRegistered: allTools.length,
-      activeSseConnections: activeSseTransports.size,
+      totalToolsRegistered: exposedTools.length,
       cpuUsage: process.cpuUsage(),
     }))
-    .get('/api/tools', () => {
-      return {
-        total: allTools.length,
-        tools: allTools.map((t) => ({
-          name: t.name,
-          module: t.module,
-          description: t.description,
-          parameters: t.parameters,
-        })),
-      };
-    })
+    .get('/api/tools', () => ({
+      total: exposedTools.length,
+      tools: exposedTools.map((t) => ({
+        name: t.name,
+        module: t.module,
+        description: t.description,
+        parameters: toInputSchema(t),
+        annotations: annotationsFor(t),
+      })),
+    }))
     .get('/api/tools/:name', ({ params, set }) => {
-      const tool = toolMap.get(params.name);
+      const tool = exposed.get(params.name);
       if (!tool) {
         set.status = 404;
         return { error: `Tool ${params.name} not found` };
       }
-      return tool;
+      return { ...tool, parameters: toInputSchema(tool), annotations: annotationsFor(tool) };
     })
     .post('/api/tools/:name/execute', async ({ params, body, set }) => {
-      if (config.readOnly && params.name.startsWith('delete_')) {
-        set.status = 403;
-        return { error: 'Read-only mode enabled.' };
-      }
-      const tool = toolMap.get(params.name);
+      const tool = exposed.get(params.name);
       if (!tool) {
-        set.status = 404;
-        return { error: `Tool ${params.name} not found` };
+        set.status = toolMap.has(params.name) ? 403 : 404;
+        return {
+          error: toolMap.has(params.name)
+            ? `Tool ${params.name} is disabled by the server configuration (PROXMOX_READ_ONLY or PROXMOX_MODULES).`
+            : `Tool ${params.name} not found`,
+        };
       }
       try {
         const result = await tool.execute((body as Record<string, any>) || {});
         return { success: true, result };
       } catch (err: any) {
         set.status = 500;
-        return { success: false, error: err.message || String(err) };
+        return { success: false, error: err?.message || String(err) };
       }
     })
-    .get('/sse', async ({ set }) => {
-      set.headers['Content-Type'] = 'text/event-stream';
-      set.headers['Cache-Control'] = 'no-cache';
-      set.headers['Connection'] = 'keep-alive';
-
-      const sseTransport = new SSEServerTransport('/api/message', {
-        headers: { 'Access-Control-Allow-Origin': '*' },
-      } as any);
-
-      activeSseTransports.set(sseTransport.sessionId, sseTransport);
-      await mcpServer.connect(sseTransport);
-
-      return new Response(
-        new ReadableStream({
-          start(controller) {
-            // Keep-alive ping
-            const interval = setInterval(() => {
-              controller.enqueue(new TextEncoder().encode(': ping\n\n'));
-            }, 15000);
-
-            sseTransport.onclose = () => {
-              clearInterval(interval);
-              activeSseTransports.delete(sseTransport.sessionId);
-              controller.close();
-            };
-          },
-        }),
-        {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
+    // MCP Streamable HTTP transport (stateless: one server per request).
+    .all('/mcp', async ({ request, body }) => {
+      const server = createMcpServer();
+      const transport = new WebStandardStreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      });
+      await server.connect(transport);
+      try {
+        return await transport.handleRequest(request, request.method === 'POST' ? { parsedBody: body } : undefined);
+      } finally {
+        if (request.method !== 'GET') {
+          // JSON responses are complete once handleRequest resolves.
+          void transport.close().catch(() => undefined);
+          void server.close().catch(() => undefined);
         }
-      );
-    })
-    .post('/api/message', async ({ request }) => {
-      const url = new URL(request.url);
-      const sessionId = url.searchParams.get('sessionId');
-      if (!sessionId || !activeSseTransports.has(sessionId)) {
-        return new Response('Session not found', { status: 404 });
       }
-
-      const transport = activeSseTransports.get(sessionId)!;
-      await transport.handlePostMessage(request as any, new Response() as any);
-      return new Response('Accepted', { status: 202 });
     });
 
   return app;
@@ -178,18 +159,26 @@ export function createElysiaApp() {
 
 export async function startHttpServer(): Promise<void> {
   const config = getConfig();
-  const app = createElysiaApp();
 
-  app.listen(
-    {
-      hostname: config.serverHost,
-      port: config.serverPort,
-    },
-    ({ hostname, port }) => {
-      console.log(`🚀 Proxmox Enterprise MCP Server running with Elysia on http://${hostname}:${port}`);
-      console.log(`📊 Health Check: http://${hostname}:${port}/health`);
-      console.log(`🛠️ REST Tools API: http://${hostname}:${port}/api/tools`);
-      console.log(`🔌 MCP SSE Transport: http://${hostname}:${port}/sse`);
-    }
-  );
+  if (typeof (globalThis as any).Bun === 'undefined') {
+    throw new Error(
+      'HTTP mode requires the Bun runtime. Run with `bun run src/index.ts`, or use stdio mode (--stdio), which works on Node too.'
+    );
+  }
+
+  if (!isLoopback(config.serverHost) && !config.authToken && !config.allowUnauthenticated) {
+    throw new Error(
+      `Refusing to listen on ${config.serverHost} without authentication. Set PROXMOX_MCP_AUTH_TOKEN, ` +
+        'bind to HOST=127.0.0.1, or set PROXMOX_MCP_ALLOW_UNAUTHENTICATED=true if you really want an open server.'
+    );
+  }
+
+  const app = createElysiaApp();
+  app.listen({ hostname: config.serverHost, port: config.serverPort }, ({ hostname, port }) => {
+    const base = `http://${hostname}:${port}`;
+    console.error(`🚀 Proxmox MCP Server v${VERSION} (HTTP) on ${base}`);
+    console.error(`🔌 MCP endpoint (Streamable HTTP): ${base}/mcp`);
+    console.error(`📊 Health: ${base}/health   🛠️ Tools: ${base}/api/tools`);
+    console.error(config.authToken ? '🔒 Bearer authentication enabled.' : '⚠️  No authentication (loopback only).');
+  });
 }

@@ -1,5 +1,4 @@
 import { getProxmoxClient, formatResponse } from '../proxmox/client.js';
-import { vmAgentExecSync, vmAgentFileReadDecoded, vmAgentFileWriteEncoded, lxcExecSync, lxcAgentExecSync } from '../proxmox/guest-exec.js';
 import { ProxmoxTool } from './types.js';
 
 export const lxcTools: ProxmoxTool[] = [
@@ -1409,57 +1408,5 @@ export const lxcTools: ProxmoxTool[] = [
     const res = await client.request(method as any, path, reqParams);
     return formatResponse(res);
   }
-  },
-  {
-    name: "lxc_exec_sync",
-    description: "Execute a command inside an LXC container and wait for completion.",
-    module: "lxc",
-    parameters: {
-      type: "object",
-      properties: {
-        node: { type: "string", description: "Node name" },
-        vmid: { type: "integer", description: "Container ID" },
-        command: { type: "string", description: "Command to execute" },
-        timeout_seconds: { type: "integer", description: "Timeout in seconds (default 30)" }
-      },
-      required: ["node", "vmid", "command"]
-    },
-    execute: async (args: Record<string, any>) => {
-      const res = await lxcExecSync(
-        String(args.node),
-        Number(args.vmid),
-        args.command,
-        args.timeout_seconds ? Number(args.timeout_seconds) : 30
-      );
-      return formatResponse(res);
-    }
-  },
-  {
-    name: "lxc_agent_exec_sync",
-    description: "Synchronously execute a command inside an LXC container that has qemu-guest-agent installed.\n\nThe container must have:\n  - qemu-guest-agent installed and running\n  - agent: 1 in the container config\n\nThis uses the Proxmox LXC agent API (/nodes/{node}/lxc/{vmid}/agent/exec) and waits for output.\nFor Docker commands inside LXC, use the lxc_docker_* tools instead which call this automatically.",
-    module: "lxc",
-    parameters: {
-      type: "object",
-      properties: {
-        node: { type: "string", description: "Node name" },
-        vmid: { type: "integer", description: "Container ID" },
-        command: { type: "string", description: "Shell command to execute" },
-        input_data: { type: "string", description: "Stdin input" },
-        timeout_seconds: { type: "integer", description: "Timeout (default 30)", default: 30 },
-        use_shell: { type: "boolean", description: "Wrap in /bin/sh -c (default true)", default: true },
-      },
-      required: ["node", "vmid", "command"]
-    },
-    execute: async (args: Record<string, any>) => {
-      const res = await lxcAgentExecSync({
-        node: String(args.node),
-        vmid: Number(args.vmid),
-        command: args.command,
-        inputData: args.input_data ? String(args.input_data) : undefined,
-        timeoutSeconds: args.timeout_seconds ? Number(args.timeout_seconds) : 30,
-        useShell: args.use_shell !== false,
-      });
-      return formatResponse(res);
-    }
   },
 ];
