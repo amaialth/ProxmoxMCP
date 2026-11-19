@@ -29715,7 +29715,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "@amailath/proxmox-mcp-server",
-    version: "2.0.0",
+    version: "2.0.1",
     description: "Proxmox VE MCP server for Claude and other AI clients: 324 tools for nodes, VMs, containers, storage, network, firewall, backups, HA and Docker inside VMs.",
     type: "module",
     main: "dist/index.js",

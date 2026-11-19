@@ -3,6 +3,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.1] — 2026-11-19
+
+### Changed
+- **Claude plugin 0.1.2:** the plugin now pins the server to an exact version (`@amailath/proxmox-mcp-server@2.0.1`) instead of the range `^2.0.0`. Anthropic's plugin directory requires `npx` packages to be pinned.
+- Added a `LICENSE` file inside `plugins/proxmox/`, as the plugin directory requires a license in the plugin folder.
+
+No changes to the server's code or tools since 2.0.0.
+
 ## [2.0.0] — 2026-11-19
 
 ### ⚠️ Breaking
