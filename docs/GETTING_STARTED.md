@@ -1,172 +1,138 @@
-# Proxmox MCP Server Getting Started & Integration Guide
+# Getting Started
 
-Welcome to the **Enterprise Proxmox VE Model Context Protocol (MCP) Server**. This guide provides step-by-step instructions to configure, run, and integrate the MCP server with AI tools such as **Claude Desktop**, **Cursor**, **VS Code**, or custom HTTP clients using **Bun** and **Elysia**.
-
----
-
-## 🎯 Prerequisites
-
-1. **Bun Runtime** (v1.0 or newer):
-   ```bash
-   curl -fsSL https://bun.sh/install | bash
-   ```
-2. **Proxmox VE Cluster** (v7.0, v8.0, or newer).
-3. Access to a Proxmox API Token or User credentials (`root@pam` or dedicated API user).
+This guide takes you from nothing to a working Proxmox MCP server in your AI client in about ten minutes. For every client's exact config format, see the [README](../README.md#connect-it-to-your-ai-client).
 
 ---
 
-## 🚀 Quick Setup & Configuration
+## 1. Prerequisites
 
-### 1. Installation
+- **Bun** 1.1+ (`curl -fsSL https://bun.sh/install | bash`) or **Node.js** 20+
+- **Proxmox VE** 7.x or 8.x, reachable from this computer on port **8006**
+- A Proxmox **API token** (step 3)
+
+Check the network first. Open `https://<your-proxmox-ip>:8006` in a browser on the computer that will run the server. If the login page doesn't load, fix that before going further (VPN, firewall, wrong IP).
+
+---
+
+## 2. Install
 
 ```bash
-git clone https://github.com/your-org/proxmox-mcp.git
-cd proxmox-mcp
+git clone https://github.com/amailath/ProxmoxMCP.git
+cd ProxmoxMCP
 bun install
+which bun   # note this absolute path
+pwd         # and this one
 ```
 
-### 2. Environment Variables Configuration
+Or skip the clone and let your client run `npx -y @amailath/proxmox-mcp-server --stdio`.
 
-Copy `.env.example` to `.env` or set environment variables in your environment:
+---
+
+## 3. Create an API token
+
+1. Proxmox web UI → **Datacenter → Permissions → API Tokens → Add**.
+2. **User** `root@pam` (or a dedicated user such as `mcp@pve`), **Token ID** `mcp`.
+3. Copy the **Secret**. It is shown once.
+4. **Datacenter → Permissions → Add → API Token Permission**: path `/`, your token, role **PVEAuditor** (read-only) or **PVEVMAdmin** / **PVEAdmin** for more. Tick **Propagate**.
+5. If **Privilege Separation** was ticked on the token, add the **same role as a User Permission** for the token's user too. The token only gets privileges that both have.
+
+---
+
+## 4. Configure
+
+Copy the example file and fill it in. This is used when you run the server by hand; clients pass the same values in their `env` block.
 
 ```bash
 cp .env.example .env
 ```
 
-Edit your `.env` file according to your Proxmox VE cluster settings:
-
 ```env
-# Proxmox Host & Port
-PROXMOX_HOST=pve.example.com
-PROXMOX_PORT=8006
-
-# -------------------------------------------------------------
-# AUTHENTICATION MODE 1: API Token (RECOMMENDED FOR ENTERPRISE)
-# -------------------------------------------------------------
+PROXMOX_HOST=192.168.1.21        # IP or hostname only
 PROXMOX_USER=root@pam
-PROXMOX_TOKEN_NAME=mcp-token
-PROXMOX_TOKEN_VALUE=12345678-abcd-1234-abcd-1234567890ab
-
-# -------------------------------------------------------------
-# AUTHENTICATION MODE 2: Password Authentication (FALLBACK)
-# -------------------------------------------------------------
-# PROXMOX_USER=root@pam
-# PROXMOX_PASSWORD=your_secure_password
-
-# Security & Safety Settings
-PROXMOX_VERIFY_SSL=false     # Set true if using valid SSL certificates
-PROXMOX_READ_ONLY=false      # Set true to block write/destructive actions
-PROXMOX_TIMEOUT=30000        # API request timeout in milliseconds
-
-# Elysia HTTP/SSE Server Settings
-PORT=3000
-HOST=0.0.0.0
+PROXMOX_TOKEN_NAME=mcp           # token ID (root@pam!mcp also accepted)
+PROXMOX_TOKEN_VALUE=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+PROXMOX_VERIFY_SSL=false         # true only with a trusted certificate
 ```
+
+All variables are listed in the [README](../README.md#configuration).
 
 ---
 
-## 🔒 Proxmox API Token Creation Guide
-
-To create a dedicated API token in Proxmox VE:
-
-1. Log into your Proxmox VE Web UI.
-2. Go to **Datacenter** ➔ **Permissions** ➔ **API Tokens**.
-3. Click **Add**:
-   - User: `root@pam` (or create a dedicated user `mcp-bot@pve`)
-   - Token ID: `mcp-token`
-   - Uncheck **Privilege Separation** if you want the token to inherit full user permissions.
-4. Copy the generated **Secret Value** immediately and put it in `PROXMOX_TOKEN_VALUE`.
-
----
-
-## 🖥️ Execution Modes
-
-### Mode 1: Elysia HTTP & SSE Server Mode (Default)
-
-Runs a high-performance web server providing REST endpoints, health metrics, and a Server-Sent Events (SSE) MCP transport.
-
-```bash
-# Start server in development mode with auto-reload
-bun dev
-
-# Start server in production mode
-bun start
-```
-
-**Elysia Server Endpoints**:
-- `http://localhost:3000/` — Server status & information
-- `http://localhost:3000/health` — Proxmox connectivity check & uptime metrics
-- `http://localhost:3000/metrics` — Memory & process metrics
-- `http://localhost:3000/api/tools` — REST endpoint returning all 298 tool schemas
-- `http://localhost:3000/sse` — SSE MCP transport for remote AI clients
-
-### Mode 2: Stdio Transport Mode
-
-Used by local desktop AI clients (Cursor, Claude Desktop, VS Code) communicating via standard input/output.
+## 5. Test from the terminal
 
 ```bash
 bun run src/index.ts --stdio
 ```
 
+You should see on stderr:
+
+```
+[Proxmox MCP] v2.0.0 stdio server running (324 tools, host 192.168.1.21).
+```
+
+Any value the server had to correct, such as a URL in `PROXMOX_HOST`, is reported above that line. Press Ctrl-C to stop.
+
+To test real API calls without an AI client, use HTTP mode:
+
+```bash
+PROXMOX_MCP_AUTH_TOKEN=dev bun start
+curl -s -H 'authorization: Bearer dev' localhost:3000/health
+```
+
+`"proxmoxConnected": true` means the host, token and certificate settings all work.
+
 ---
 
-## 🔌 Integrating with AI Clients
+## 6. Add it to your AI client
 
-### 1. Claude Desktop Integration
-
-> **Note on macOS GUI Apps (`spawn bun ENOENT`)**: Desktop applications (Claude Desktop, Cursor, VS Code) do not inherit shell `$PATH` environments. Always specify the full absolute path to `bun` (e.g. `/Users/yourusername/.bun/bin/bun` or run `which bun` in your terminal).
-
-Add the server to your `claude_desktop_config.json`:
-
-- **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+Claude Desktop example (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
-    "proxmox-local": {
-      "command": "bun",
-      "args": ["run", "PATH_TO/index.ts", "--stdio"],
+    "proxmox": {
+      "command": "/Users/you/.bun/bin/bun",
+      "args": ["run", "/Users/you/Projects/ProxmoxMCP/src/index.ts", "--stdio"],
       "env": {
-        "PROXMOX_HOST": "IP_ADDRESS",
-        "PROXMOX_USER": "mcp-bot@pve",
+        "PROXMOX_HOST": "192.168.1.21",
+        "PROXMOX_USER": "root@pam",
         "PROXMOX_TOKEN_NAME": "mcp",
-        "PROXMOX_TOKEN_VALUE": "XXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-        "PROXMOX_VERIFY_SSL": "true"
+        "PROXMOX_TOKEN_VALUE": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "PROXMOX_VERIFY_SSL": "false"
       }
     }
   }
 }
 ```
 
-### 2. Cursor Integration
+- Use **absolute paths**: desktop apps don't see your shell `PATH`.
+- Keep **`--stdio`** in `args`.
+- **Fully quit and reopen** the client after editing.
 
-1. Go to **Cursor Settings** ➔ **Features** ➔ **MCP Servers**.
-2. Click **+ Add New MCP Server**:
-   - **Name**: `proxmox-local`
-   - **Type**: `command`
-   - **Command**: `/Users/creativestudio14/.bun/bin/bun run /Users/creativestudio14/Projects/ProxmoxMCP/src/index.ts --stdio`
-3. Add Environment Variables (`PROXMOX_HOST`, `PROXMOX_USER`, `PROXMOX_TOKEN_NAME`, `PROXMOX_TOKEN_VALUE`, `PROXMOX_VERIFY_SSL`).
+Configs for Claude Code, Cursor, VS Code, Copilot CLI, Windsurf, Antigravity, Gemini CLI, Codex CLI, Cline/Roo and Zed are in the [README](../README.md#connect-it-to-your-ai-client).
 
 ---
 
-## 🧪 Testing & Verification
+## 7. First prompts to try
 
-```bash
-# Run unit test suite (13 passing tests)
-bun test
-
-# Perform TypeScript static type check
-bun run typecheck
-
-# Build standalone distribution bundle
-bun run build
-```
+- "List my Proxmox nodes and VMs with their status and memory use."
+- "Show cluster status." (needs `PVEAuditor`)
+- "Is the guest agent running in VM 100?" (`vm_agent_ping`)
+- "What Docker containers are running in each VM?" (`vm_docker_ps`, needs the guest agent)
 
 ---
 
-## 💡 Troubleshooting & Tips
+## 8. Optional: in-guest tools
 
-- **Read-Only Safety**: Enable `PROXMOX_READ_ONLY=true` in staging or multi-user environments. Any attempt to modify, create, or delete VMs or storage will return a safe error without mutating the Proxmox cluster.
-- **SSL Certificate Warnings**: If your Proxmox server uses a self-signed certificate (default installation), ensure `PROXMOX_VERIFY_SSL=false` is set to avoid connection errors.
-- **Guest Agent Execution**: For `vm_agent_exec_sync` to work, ensure the **QEMU Guest Agent** is enabled in the VM settings (VM ➔ Options ➔ QEMU Guest Agent) and the agent package (`qemu-guest-agent`) is installed and running inside the guest operating system.
+The `vm_*` tools run commands inside VMs through the QEMU guest agent:
+
+1. In the VM: `apt install qemu-guest-agent && systemctl enable --now qemu-guest-agent`
+2. In Proxmox: **VM → Options → QEMU Guest Agent → Enabled**, then stop and start the VM.
+
+LXC containers can't run commands through the Proxmox API, so there are no `lxc_*` exec tools.
+
+---
+
+## Troubleshooting
+
+See the [troubleshooting table](../README.md#troubleshooting) in the README. The usual culprits are an unreachable host, a missing `--stdio`, a relative `bun` path, or a token missing permissions because of Privilege Separation.

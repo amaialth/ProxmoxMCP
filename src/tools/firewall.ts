@@ -1,5 +1,4 @@
 import { getProxmoxClient, formatResponse } from '../proxmox/client.js';
-import { vmAgentExecSync, vmAgentFileReadDecoded, vmAgentFileWriteEncoded, lxcExecSync } from '../proxmox/guest-exec.js';
 import { ProxmoxTool } from './types.js';
 
 export const firewallTools: ProxmoxTool[] = [

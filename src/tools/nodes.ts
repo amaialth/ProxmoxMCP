@@ -1,5 +1,4 @@
 import { getProxmoxClient, formatResponse } from '../proxmox/client.js';
-import { vmAgentExecSync, vmAgentFileReadDecoded, vmAgentFileWriteEncoded, lxcExecSync } from '../proxmox/guest-exec.js';
 import { ProxmoxTool } from './types.js';
 
 export const nodesTools: ProxmoxTool[] = [
@@ -452,32 +451,30 @@ export const nodesTools: ProxmoxTool[] = [
   },
   {
     name: "get_node_journal",
-    description: "Read systemd journal entries from a node.\n\nArgs:\n    node: The node name.\n    lastentries: Max number of entries (default 50).\n    since: Show entries since date/time.\n    until: Show entries until date/time.\n    startcursor: Start cursor for paging.",
+    description: "Read systemd journal entries from a node.\n\nArgs:\n    node: The node name.\n    lastentries: Max number of entries (default 50).\n    since: Unix timestamp (seconds) to start from, e.g. 1795060000.\n    until: Unix timestamp (seconds) to stop at.\n    startcursor: Journal cursor to start from (for paging).\n    endcursor: Journal cursor to end at.\n\nTip: for date strings like '2026-11-19 02:00:00' use get_node_syslog instead.",
     module: "nodes",
     parameters: {
     "properties": {
         "lastentries": {
             "default": 50,
-            "title": "Lastentries",
-            "type": "integer"
+            "type": "integer",
+            "description": "Maximum number of entries to return"
         },
         "node": {
-            "title": "Node",
             "type": "string"
         },
         "since": {
-            "default": "",
-            "title": "Since",
-            "type": "string"
-        },
-        "startcursor": {
-            "default": "",
-            "title": "Startcursor",
-            "type": "string"
+            "type": "integer",
+            "description": "Unix epoch seconds"
         },
         "until": {
-            "default": "",
-            "title": "Until",
+            "type": "integer",
+            "description": "Unix epoch seconds"
+        },
+        "startcursor": {
+            "type": "string"
+        },
+        "endcursor": {
             "type": "string"
         }
     },
@@ -491,7 +488,7 @@ export const nodesTools: ProxmoxTool[] = [
     const client = getProxmoxClient();
     const method = "GET";
     let path = "/nodes/{node}/journal";
-    const paramMap: Record<string, string> = {"since": "since", "until": "until", "startcursor": "startcursor"};
+    const paramMap: Record<string, string> = {"since": "since", "until": "until", "startcursor": "startcursor", "endcursor": "endcursor"};
     const reqParams: Record<string, any> = {};
 
     for (const [k, v] of Object.entries(args)) {
@@ -1602,5 +1599,51 @@ export const nodesTools: ProxmoxTool[] = [
       const res = await client.post(`/nodes/${args.node}/stopall`, params);
       return formatResponse(res);
     }
-  }
+  },
+  {
+    name: "set_node_time",
+    description: "Set the timezone of a node (writes /etc/timezone and /etc/localtime on the host).\n\nArgs:\n    node: The node name.\n    timezone: IANA timezone name, e.g. 'America/New_York', 'Europe/Berlin', 'UTC'.\n\nRequires Sys.Modify on /nodes/{node}. Restart cron afterwards (manage_node_service) so scheduled jobs use the new zone.",
+    module: "nodes",
+    parameters: {
+      type: "object",
+      properties: {
+        node: { type: "string", description: "Node name" },
+        timezone: { type: "string", description: "IANA timezone, e.g. America/New_York" }
+      },
+      required: ["node", "timezone"]
+    },
+    execute: async (args: Record<string, any>) => {
+      const client = getProxmoxClient();
+      const node = encodeURIComponent(String(args.node));
+      await client.put(`/nodes/${node}/time`, { timezone: String(args.timezone) });
+      const res = await client.get(`/nodes/${node}/time`);
+      return formatResponse({ success: true, ...res });
+    }
+  },
+  {
+    name: "node_power",
+    description: "Reboot or shut down a Proxmox node (the physical host). All guests on it are stopped or migrated according to their HA/startup settings.\n\nArgs:\n    node: The node name.\n    command: 'reboot' or 'shutdown'.\n    confirm: Must be the node name, as a safety check.\n\nRequires Sys.PowerMgmt on /nodes/{node}.",
+    module: "nodes",
+    parameters: {
+      type: "object",
+      properties: {
+        node: { type: "string", description: "Node name" },
+        command: { type: "string", enum: ["reboot", "shutdown"], description: "Power action" },
+        confirm: { type: "string", description: "Repeat the node name to confirm" }
+      },
+      required: ["node", "command", "confirm"]
+    },
+    execute: async (args: Record<string, any>) => {
+      const command = String(args.command);
+      if (command !== "reboot" && command !== "shutdown") {
+        throw new Error("command must be 'reboot' or 'shutdown'");
+      }
+      if (String(args.confirm) !== String(args.node)) {
+        throw new Error(`Safety check failed: set confirm to the node name ("${args.node}") to ${command} it.`);
+      }
+      const client = getProxmoxClient();
+      const res = await client.post(`/nodes/${encodeURIComponent(String(args.node))}/status`, { command });
+      return formatResponse({ success: true, node: args.node, command, result: res });
+    }
+  },
 ];

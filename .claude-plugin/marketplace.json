@@ -1,0 +1,23 @@
+{
+  "name": "proxmox-mcp",
+  "owner": {
+    "name": "Anbumani - CreativeStudio14.com",
+    "url": "https://creativestudio14.com"
+  },
+  "metadata": {
+    "description": "Proxmox VE plugins for Claude"
+  },
+  "plugins": [
+    {
+      "name": "proxmox",
+      "source": "./plugins/proxmox",
+      "description": "Manage a Proxmox VE cluster from Claude: 324 tools plus guided setup, health checks, outage troubleshooting and safe-change workflows.",
+      "version": "0.1.0",
+      "author": { "name": "Anbumani - CreativeStudio14.com" },
+      "homepage": "https://github.com/amailath/ProxmoxMCP",
+      "license": "MIT",
+      "keywords": ["proxmox", "homelab", "virtualization", "infrastructure"],
+      "category": "infrastructure"
+    }
+  ]
+}

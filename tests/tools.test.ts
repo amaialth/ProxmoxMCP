@@ -13,21 +13,21 @@ import { qemuTools } from '../src/tools/qemu.js';
 import { sdnTools } from '../src/tools/sdn.js';
 import { storageTools } from '../src/tools/storage.js';
 
-describe('Comprehensive MCP Tools Suite (All 294 Tools)', () => {
-  it('should have correct tool counts across all 11 modules', () => {
+describe('Comprehensive MCP Tools Suite (All 324 Tools)', () => {
+  it('should have correct tool counts across all modules', () => {
     assert.strictEqual(accessTools.length, 27, 'Access module tool count');
     assert.strictEqual(backupTools.length, 11, 'Backup module tool count');
     assert.strictEqual(clusterTools.length, 46, 'Cluster module tool count');
     assert.strictEqual(firewallTools.length, 32, 'Firewall module tool count');
     assert.strictEqual(haTools.length, 14, 'HA module tool count');
-    assert.strictEqual(lxcTools.length, 26, 'LXC module tool count');
-    assert.strictEqual(nodesTools.length, 41, 'Nodes module tool count');
+    assert.strictEqual(lxcTools.length, 25, 'LXC module tool count');
+    assert.strictEqual(nodesTools.length, 43, 'Nodes module tool count (+ set_node_time, node_power)');
     assert.strictEqual(poolsTools.length, 14, 'Pools module tool count');
-    assert.strictEqual(qemuTools.length, 40, 'QEMU module tool count');
+    assert.strictEqual(qemuTools.length, 41, 'QEMU module tool count (+ vm_agent_ping)');
     assert.strictEqual(sdnTools.length, 17, 'SDN module tool count');
     assert.strictEqual(storageTools.length, 26, 'Storage module tool count');
-
-    assert.strictEqual(allTools.length, 294, 'Total tool count should be exactly 294 unique tools');
+    // guest-services adds 28 vm_* Docker/service tools
+    assert.strictEqual(allTools.length, 324, 'Total tool count (296 API tools + 28 guest-services)');
   });
 
   it('should verify every tool has valid metadata, non-empty description, and execute function', () => {
@@ -53,7 +53,7 @@ describe('Comprehensive MCP Tools Suite (All 294 Tools)', () => {
       await listNodesTool.execute({});
     } catch (err: any) {
       assert.ok(
-        err.message.includes('PROXMOX_HOST') || err.message.includes('fetch failed') || err.message.includes('Proxmox API Error'),
+        err.message.includes('PROXMOX_HOST') || err.message.includes('Could not reach Proxmox') || err.message.includes('Proxmox API Error') || err.message.includes('credentials'),
         `Unexpected error message: ${err.message}`
       );
     }
@@ -73,12 +73,10 @@ describe('Comprehensive MCP Tools Suite (All 294 Tools)', () => {
     assert.ok(fileWrite, 'vm_agent_file_write should exist');
   });
 
-  it('should verify enhanced LXC execution tools exist', () => {
-    const lxcSync = toolMap.get('lxc_exec_sync');
-    assert.ok(lxcSync, 'lxc_exec_sync should exist');
-    assert.ok(lxcSync.parameters.properties?.node);
-    assert.ok(lxcSync.parameters.properties?.vmid);
-    assert.ok(lxcSync.parameters.properties?.command);
+  it('should not expose LXC exec tools (no Proxmox API exists for them)', () => {
+    assert.ok(!toolMap.has('lxc_exec_sync'));
+    assert.ok(!toolMap.has('lxc_agent_exec_sync'));
+    assert.ok(!toolMap.has('lxc_run_shell'));
   });
 
   it('should verify physical disk, SMART, PCI, USB, and task management tools exist', () => {

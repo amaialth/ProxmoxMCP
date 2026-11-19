@@ -1,5 +1,4 @@
 import { getProxmoxClient, formatResponse } from '../proxmox/client.js';
-import { vmAgentExecSync, vmAgentFileReadDecoded, vmAgentFileWriteEncoded, lxcExecSync } from '../proxmox/guest-exec.js';
 import { ProxmoxTool } from './types.js';
 
 export const lxcTools: ProxmoxTool[] = [
@@ -1409,29 +1408,5 @@ export const lxcTools: ProxmoxTool[] = [
     const res = await client.request(method as any, path, reqParams);
     return formatResponse(res);
   }
-  },
-  {
-    name: "lxc_exec_sync",
-    description: "Execute a command inside an LXC container and wait for completion.",
-    module: "lxc",
-    parameters: {
-      type: "object",
-      properties: {
-        node: { type: "string", description: "Node name" },
-        vmid: { type: "integer", description: "Container ID" },
-        command: { type: "string", description: "Command to execute" },
-        timeout_seconds: { type: "integer", description: "Timeout in seconds (default 30)" }
-      },
-      required: ["node", "vmid", "command"]
-    },
-    execute: async (args: Record<string, any>) => {
-      const res = await lxcExecSync(
-        String(args.node),
-        Number(args.vmid),
-        args.command,
-        args.timeout_seconds ? Number(args.timeout_seconds) : 30
-      );
-      return formatResponse(res);
-    }
   },
 ];

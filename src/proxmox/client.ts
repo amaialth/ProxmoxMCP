@@ -1,4 +1,7 @@
-import { getConfig, ProxmoxConfig } from '../config.js';
+import { getConfig, ProxmoxConfig, formatBaseUrl } from '../config.js';
+
+const isBun = typeof (globalThis as any).Bun !== 'undefined';
+let nodeTlsRelaxed = false;
 
 export interface ProxmoxTicket {
   ticket: string;
@@ -16,20 +19,26 @@ export class ProxmoxClient {
   }
 
   private get baseUrl(): string {
-    const protocol = this.config.port === 80 ? 'http' : 'https';
-    const host = this.config.host || '127.0.0.1';
-    return `${protocol}://${host}:${this.config.port}/api2/json`;
+    return formatBaseUrl(this.config);
   }
 
   private getFetchOptions(): Record<string, any> {
-    const opts: Record<string, any> = {};
-    // Bun native TLS verification setting
-    if (typeof (globalThis as any).Bun !== 'undefined' && this.config.port !== 80) {
-      opts.tls = {
-        rejectUnauthorized: this.config.verifySsl,
-      };
+    if (this.config.protocol !== 'https' || this.config.verifySsl) return {};
+
+    if (isBun) {
+      // Bun's fetch accepts a per-request TLS option.
+      return { tls: { rejectUnauthorized: false } };
     }
-    return opts;
+
+    // Node's fetch (undici) has no per-request switch without an extra
+    // dependency, so relax verification for this process once. Proxmox's
+    // default certificate is self-signed, so this is what most users need.
+    if (!nodeTlsRelaxed && process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      nodeTlsRelaxed = true;
+      console.error('[Proxmox MCP] PROXMOX_VERIFY_SSL=false: TLS certificate verification is disabled for this process.');
+    }
+    return {};
   }
 
   private async getTicket(): Promise<ProxmoxTicket> {
@@ -42,7 +51,7 @@ export class ProxmoxClient {
 
     if (!this.config.password) {
       throw new Error(
-        'Proxmox password is required for ticket-based authentication.'
+        'No Proxmox credentials configured. Set PROXMOX_TOKEN_NAME + PROXMOX_TOKEN_VALUE (recommended) or PROXMOX_USER + PROXMOX_PASSWORD.'
       );
     }
 
@@ -94,7 +103,7 @@ export class ProxmoxClient {
 
     if (!this.config.host) {
       throw new Error(
-        'PROXMOX_HOST environment variable is not configured.'
+        'PROXMOX_HOST environment variable is not configured. Set it to the IP or hostname of your Proxmox server, e.g. 192.168.1.21.'
       );
     }
 
@@ -121,7 +130,14 @@ export class ProxmoxClient {
       if (normalizedMethod === 'GET') {
         const query = new URLSearchParams();
         for (const [key, val] of Object.entries(params)) {
-          if (val !== undefined && val !== null) {
+          // Optional GET filters arrive as "" when a client fills in schema
+          // defaults; Proxmox rejects empty values for typed parameters.
+          if (val === undefined || val === null || val === '') continue;
+          if (Array.isArray(val)) {
+            for (const item of val) query.append(key, String(item));
+          } else if (typeof val === 'boolean') {
+            query.append(key, val ? '1' : '0');
+          } else {
             query.append(key, String(val));
           }
         }
@@ -169,16 +185,33 @@ export class ProxmoxClient {
           this.ticketCache = null;
         }
         throw new Error(
-          `Proxmox API Error [${normalizedMethod} ${cleanPath}] (${response.status}): ${errBody}`
+          `Proxmox API Error [${normalizedMethod} ${cleanPath}] (${response.status}): ${errBody || response.statusText}`
         );
       }
 
-      const resJson = (await response.json()) as any;
-      return resJson.data !== undefined ? resJson.data : resJson;
+      const text = await response.text();
+      if (!text) return null as T;
+      let resJson: any;
+      try {
+        resJson = JSON.parse(text);
+      } catch {
+        return text as T;
+      }
+      if (resJson && typeof resJson === 'object' && 'data' in resJson) {
+        return resJson.data as T;
+      }
+      return resJson as T;
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
         throw new Error(`Proxmox API request timed out after ${this.config.timeout}ms [${normalizedMethod} ${cleanPath}]`);
+      }
+      if (err instanceof Error && !err.message.startsWith('Proxmox API Error')) {
+        const cause = (err as any).cause?.code || (err as any).code || '';
+        const hint = /CERT|SELF_SIGNED|UNABLE_TO_VERIFY|certificate/i.test(`${cause} ${err.message}`)
+          ? ' The server certificate was rejected; set PROXMOX_VERIFY_SSL=false for a self-signed certificate.'
+          : ` Check that ${this.baseUrl.replace('/api2/json', '')} is reachable from this computer.`;
+        throw new Error(`Could not reach Proxmox [${normalizedMethod} ${cleanPath}]: ${err.message}${cause ? ` (${cause})` : ''}.${hint}`);
       }
       throw err;
     }
@@ -202,6 +235,11 @@ export class ProxmoxClient {
 }
 
 let defaultClientInstance: ProxmoxClient | null = null;
+
+/** Drop the cached client (and its config/ticket) so the next call picks up new settings. */
+export function resetProxmoxClient(): void {
+  defaultClientInstance = null;
+}
 
 export function getProxmoxClient(): ProxmoxClient {
   if (!defaultClientInstance) {
