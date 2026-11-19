@@ -1,6 +1,6 @@
 # Proxmox MCP Tools Reference
 
-> Generated from the tool registry for **v2.0.1** by `bun run docs`. Do not edit by hand.
+> Generated from the tool registry for **v2.1.0** by `bun run docs`. Do not edit by hand.
 
 **324 tools** in 12 modules.
 

@@ -117,3 +117,27 @@ describe('Elysia HTTP server', () => {
     assert.ok(!isLoopback('192.168.1.10'));
   });
 });
+
+describe('serveWithNode', () => {
+  it('serves the app through node:http with auth', async () => {
+    const { serveWithNode } = await import('../src/server.js');
+    process.env = { ...process.env, PROXMOX_HOST: '', PROXMOX_MCP_AUTH_TOKEN: 'tok' };
+    resetConfig();
+    const app = createElysiaApp();
+    const server = await serveWithNode((r) => app.handle(r), '127.0.0.1', 0);
+    const port = (server.address() as any).port;
+    try {
+      assert.strictEqual((await fetch(`http://127.0.0.1:${port}/api/tools`)).status, 401);
+      const ok = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: { ...mcpHeaders, authorization: 'Bearer tok' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      });
+      assert.strictEqual(ok.status, 200);
+      const data = (await ok.json()) as any;
+      assert.strictEqual(data.result.tools.length, 324);
+    } finally {
+      server.close();
+    }
+  });
+});

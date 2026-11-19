@@ -1,0 +1,39 @@
+{
+  "name": "homelab-proxmox",
+  "displayName": "Homelab Proxmox",
+  "version": "0.1.0",
+  "description": "Manage your Proxmox VE homelab from Claude through your own self-hosted MCP server: health checks, outage troubleshooting, safe VM changes and Docker inside VMs.",
+  "author": {
+    "name": "Anbumani - CreativeStudio14.com",
+    "url": "https://creativestudio14.com"
+  },
+  "homepage": "https://github.com/amailath/ProxmoxMCP",
+  "repository": "https://github.com/amailath/ProxmoxMCP",
+  "license": "MIT",
+  "privacyPolicyUrl": "https://github.com/amaialth/ProxmoxMCP/blob/main/PRIVACY.md",
+  "keywords": [
+    "homelab",
+    "proxmox-ve",
+    "virtualization",
+    "kvm",
+    "lxc",
+    "docker",
+    "infrastructure",
+    "self-hosted"
+  ],
+  "userConfig": {
+    "server_url": {
+      "type": "string",
+      "title": "Server URL",
+      "description": "HTTPS address of your self-hosted Proxmox MCP server's /mcp endpoint, e.g. https://pve-mcp.example.com/mcp. See the README to set one up.",
+      "required": true
+    },
+    "auth_token": {
+      "type": "string",
+      "title": "Server access token",
+      "description": "The PROXMOX_MCP_AUTH_TOKEN you set on your server. Stored securely.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

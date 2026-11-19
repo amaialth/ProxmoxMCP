@@ -1,7 +1,7 @@
 # Proxmox VE MCP Server
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.1-blue?style=for-the-badge" alt="v2.0.1">
+  <img src="https://img.shields.io/badge/version-2.1.0-blue?style=for-the-badge" alt="v2.1.0">
   <img src="https://img.shields.io/badge/tools-324-orange?style=for-the-badge" alt="324 tools">
   <img src="https://img.shields.io/badge/runtime-Bun%20%7C%20Node%2020%2B-black?style=for-the-badge" alt="Bun or Node 20+">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=for-the-badge" alt="MIT">
@@ -13,7 +13,8 @@ Every tool is labelled **read-only**, **write** or **destructive** (MCP tool ann
 
 - 🚀 **[Getting Started guide](./docs/GETTING_STARTED.md)**: install, API token, first run
 - 🛠️ **[Tools reference](./docs/TOOLS_REFERENCE.md)**: every tool with its parameters and safety label
-- 🧩 **[Claude plugin](./plugins/proxmox/README.md)**: one-click install with guided setup, health check, troubleshooting and safe-change skills
+- 🧩 **Claude plugins**: [`proxmox`](./plugins/proxmox/README.md) (server runs on your computer) and [`homelab-proxmox`](./plugins/homelab-proxmox/README.md) (connects to a server you self-host), both with guided setup, health check, troubleshooting and safe-change skills
+- 🔒 **[Privacy policy](./PRIVACY.md)**
 - 📝 **[Changelog](./CHANGELOG.md)**: what changed in v2.0.0
 
 ---
@@ -25,7 +26,7 @@ Every tool is labelled **read-only**, **write** or **destructive** (MCP tool ann
 3. [Configuration (environment variables)](#configuration)
 4. [Create a Proxmox API token & permissions](#create-a-proxmox-api-token--permissions)
 5. [Connect it to your AI client](#connect-it-to-your-ai-client)
-   - [Claude plugin (easiest)](#claude-plugin-easiest)
+   - [Claude plugins (easiest)](#claude-plugins-easiest)
    - [Claude Desktop / Claude app](#claude-desktop--claude-app)
    - [Claude Code (CLI)](#claude-code-cli)
    - [Cursor](#cursor)
@@ -38,6 +39,7 @@ Every tool is labelled **read-only**, **write** or **destructive** (MCP tool ann
    - [Cline / Roo Code](#cline--roo-code)
    - [Zed](#zed)
    - [Any other client (HTTP mode)](#any-other-client-http-mode)
+   - [Self-hosting (HTTP mode and Docker)](#self-hosting-http-mode-and-docker)
 6. [Verify it works](#verify-it-works)
 7. [Tool catalogue](#tool-catalogue)
 8. [Running commands inside guests](#running-commands-inside-guests)
@@ -52,7 +54,7 @@ Every tool is labelled **read-only**, **write** or **destructive** (MCP tool ann
 
 | | |
 |---|---|
-| **Runtime** | **Bun** 1.1+ (`curl -fsSL https://bun.sh/install \| bash`) or **Node.js** 20+. HTTP mode needs Bun; stdio mode, which every desktop/CLI client uses, runs on either. |
+| **Runtime** | **Node.js** 20+ or **Bun** 1.1+ (`curl -fsSL https://bun.sh/install \| bash`). Both stdio and HTTP mode run on either; Docker works too. |
 | **Proxmox VE** | 7.x or 8.x, reachable over HTTPS (default port **8006**) from the machine running the server |
 | **Credentials** | An API token (recommended) or a username + password |
 | **For guest tools** | `qemu-guest-agent` installed and running in the VM, and **Options → QEMU Guest Agent** enabled |
@@ -178,16 +180,21 @@ Every client launches the same command:
 
 After editing any config, **fully quit and reopen the client** (or reload its MCP servers) so it starts the server with the new settings.
 
-### Claude plugin (easiest)
+### Claude plugins (easiest)
 
-For Claude Code and other Claude apps that support plugins, install the bundled **proxmox** plugin. It starts the server with `npx` (Node 20+ required), asks for your host and token in its settings, and adds four skills: guided setup, health check, outage troubleshooting and safe-change rules.
+Two Claude plugins ship in this repo's marketplace. Both include the same four skills (guided setup, health check, outage troubleshooting, safe-change rules); they differ in where the server runs:
+
+| Plugin | Server runs | Works in | Settings |
+|---|---|---|---|
+| **`proxmox`** | On your computer via `npx` (Node 20+) | Claude Code, Claude desktop / Cowork | Proxmox host, API token ID + secret, TLS, read-only, modules |
+| **`homelab-proxmox`** | On a machine you host (Docker/Node), reached over HTTPS | Claude Code, Claude desktop / Cowork, **claude.ai** | Server URL (`https://…/mcp`) + access token |
 
 ```text
-/plugin marketplace add amailath/ProxmoxMCP
-/plugin install proxmox@proxmox-mcp
+/plugin marketplace add amaialth/ProxmoxMCP
+/plugin install proxmox@proxmox-mcp            # or: homelab-proxmox@proxmox-mcp
 ```
 
-Then fill in the settings (`/plugin` → proxmox → configure, or `claude plugin configure proxmox`) and say **"set up Proxmox"**. See the [plugin README](./plugins/proxmox/README.md) for details. If your client doesn't offer plugin settings, put the values in `~/.config/proxmox-mcp/.env` instead.
+Fill in the settings (`/plugin` → the plugin → configure), then say **"set up Proxmox"**. `homelab-proxmox` is the version submitted to Anthropic's plugin directory. See [Self-hosting](#self-hosting-http-mode-and-docker) for its server. If your client doesn't offer plugin settings, the `proxmox` plugin also reads `~/.config/proxmox-mcp/.env`.
 
 ### Claude Desktop / Claude app
 
@@ -451,7 +458,7 @@ In Zed's `settings.json`:
 
 ### Any other client (HTTP mode)
 
-Any client that accepts a stdio `command` + `args` + `env` works with the blocks above. For remote use, or for clients that only speak HTTP, run the server in HTTP mode (**Bun required**). It serves the standard **MCP Streamable HTTP** transport at `/mcp`:
+Any client that accepts a stdio `command` + `args` + `env` works with the blocks above. For remote use, or for clients that only speak HTTP, run the server in HTTP mode (Node 20+, Bun, or Docker; see [Self-hosting](#self-hosting-http-mode-and-docker)). It serves the standard **MCP Streamable HTTP** transport at `/mcp`:
 
 ```bash
 cd /ABS/PATH/TO/ProxmoxMCP
@@ -487,6 +494,51 @@ Or in Cursor, VS Code, Windsurf and others that accept a URL:
 
 ---
 
+### Self-hosting (HTTP mode and Docker)
+
+Use this for the `homelab-proxmox` plugin, claude.ai, or any remote MCP client. Run the server on a machine that can reach Proxmox, such as an LXC or VM on the Proxmox host, a NAS or a Raspberry Pi.
+
+**1. Settings**: create `proxmox-mcp.env` (start from `.env.example`) and `chmod 600` it:
+
+```env
+PROXMOX_HOST=192.168.1.21
+PROXMOX_TOKEN_NAME=root@pam!mcp
+PROXMOX_TOKEN_VALUE=<proxmox token secret>
+PROXMOX_VERIFY_SSL=false
+PROXMOX_MCP_AUTH_TOKEN=<output of: openssl rand -hex 32>
+# PROXMOX_READ_ONLY=true      # recommended if the server is reachable from the internet
+```
+
+**2a. Docker** (recommended):
+
+```bash
+docker compose up -d          # builds from the Dockerfile, listens on 127.0.0.1:3000
+docker logs proxmox-mcp
+```
+
+**2b. Node.js 20+**:
+
+```bash
+set -a; . ./proxmox-mcp.env; set +a
+HOST=127.0.0.1 PORT=3000 npx -y @amailath/proxmox-mcp-server@2.1.0
+```
+
+**3. HTTPS address**: put a tunnel or reverse proxy in front of port 3000:
+- **Cloudflare Tunnel**, optionally with Cloudflare Access for an extra login layer.
+- **Tailscale:** `tailscale serve --bg 3000` gives a private `https://<machine>.<tailnet>.ts.net` URL. `tailscale funnel --bg 3000` makes it public, which claude.ai needs.
+- **Caddy, Nginx Proxy Manager or Traefik** with a real certificate.
+
+**4. Check it:**
+
+```bash
+curl https://<address>/                                              # {"status":"ok", ... "authRequired":true}
+curl -H "Authorization: Bearer <token>" https://<address>/health     # "proxmoxConnected": true
+```
+
+The MCP endpoint is `https://<address>/mcp`. Enter that, plus the token, in the `homelab-proxmox` plugin settings or any MCP client that supports remote servers.
+
+---
+
 ## Verify it works
 
 1. **Network:** from the same computer, open `https://<PROXMOX_HOST>:8006` in a browser. The Proxmox login page should load.
@@ -495,7 +547,7 @@ Or in Cursor, VS Code, Windsurf and others that accept a URL:
    PROXMOX_HOST=192.168.1.21 PROXMOX_TOKEN_NAME=mcp PROXMOX_TOKEN_VALUE=… \
      /ABS/PATH/TO/bun run /ABS/PATH/TO/ProxmoxMCP/src/index.ts --stdio
    ```
-   It should print something like `[Proxmox MCP] v2.0.1 stdio server running (324 tools, host 192.168.1.21).` to stderr and wait. Any configuration it had to correct is printed above that line. Press Ctrl-C to stop it.
+   It should print something like `[Proxmox MCP] v2.1.0 stdio server running (324 tools, host 192.168.1.21).` to stderr and wait. Any configuration it had to correct is printed above that line. Press Ctrl-C to stop it.
 3. **In your client**, ask: *"Use the Proxmox tools to get the version and list nodes."* You should see `get_version` and `list_nodes` succeed.
 4. **Permissions:** ask for *"cluster status"*. A `Sys.Audit` error means the token needs `PVEAuditor` (see [Privilege Separation](#️-privilege-separation)).
 
@@ -586,7 +638,6 @@ Commands run as **root** in the guest, wrapped in `/bin/sh -c`, so pipes and red
 ## Known limitations
 
 - **No commands inside LXC containers** and **no shell on the Proxmox host**: the Proxmox API doesn't offer either (see [Running commands inside guests](#running-commands-inside-guests)).
-- **HTTP mode needs Bun.** Stdio mode runs on Bun or Node 20+.
 - **On Node, `PROXMOX_VERIFY_SSL=false` applies to the whole process**, because Node's built-in fetch has no per-request switch. This only matters if you embed the server in a larger Node program.
 - **Read-only guest tools (e.g. `vm_docker_ps`) need write API access**, because the guest-agent exec endpoint is a POST. They're hidden when `PROXMOX_READ_ONLY=true`.
 

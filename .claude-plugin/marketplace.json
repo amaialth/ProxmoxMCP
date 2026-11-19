@@ -11,12 +11,37 @@
     {
       "name": "proxmox",
       "source": "./plugins/proxmox",
-      "description": "Manage a Proxmox VE cluster from Claude: 324 tools plus guided setup, health checks, outage troubleshooting and safe-change workflows.",
-      "version": "0.1.2",
-      "author": { "name": "Anbumani - CreativeStudio14.com" },
+      "description": "Manage a Proxmox VE cluster from Claude with the server running on your computer (npx, Node 20+): 324 tools plus guided setup, health checks, outage troubleshooting and safe-change workflows.",
+      "version": "0.2.0",
+      "author": {
+        "name": "Anbumani - CreativeStudio14.com"
+      },
       "homepage": "https://github.com/amailath/ProxmoxMCP",
       "license": "MIT",
-      "keywords": ["proxmox", "homelab", "virtualization", "infrastructure"],
+      "keywords": [
+        "proxmox",
+        "homelab",
+        "virtualization",
+        "infrastructure"
+      ],
+      "category": "infrastructure"
+    },
+    {
+      "name": "homelab-proxmox",
+      "source": "./plugins/homelab-proxmox",
+      "description": "Same tools and skills, connected to a Proxmox MCP server you self-host (Docker/Node) over HTTPS. Works in Claude Code, desktop and claude.ai.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Anbumani - CreativeStudio14.com"
+      },
+      "homepage": "https://github.com/amailath/ProxmoxMCP",
+      "license": "MIT",
+      "keywords": [
+        "homelab",
+        "proxmox-ve",
+        "virtualization",
+        "self-hosted"
+      ],
       "category": "infrastructure"
     }
   ]

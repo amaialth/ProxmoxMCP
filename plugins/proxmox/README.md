@@ -64,4 +64,6 @@ Every tool is labelled read-only, additive or destructive, so Claude asks before
 
 Or install the `proxmox.plugin` file from the repository's releases.
 
+> Want it on claude.ai, or don't want the server on your own computer? Use the **`homelab-proxmox`** plugin from the same marketplace. It connects to a server you self-host.
+
 MIT © Anbumani - CreativeStudio14.com

@@ -1,0 +1,16 @@
+# Self-hosted Proxmox MCP server.
+#   1. cp .env.example proxmox-mcp.env and fill it in (PROXMOX_MCP_AUTH_TOKEN is required)
+#   2. docker compose up -d
+#   3. Point your MCP client / the homelab-proxmox plugin at https://<your-domain>/mcp
+services:
+  proxmox-mcp:
+    build: .
+    image: proxmox-mcp:2.1.0
+    container_name: proxmox-mcp
+    restart: unless-stopped
+    env_file: proxmox-mcp.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:3000:3000"   # expose through a TLS reverse proxy or tunnel, not directly

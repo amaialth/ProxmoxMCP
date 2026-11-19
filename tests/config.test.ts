@@ -170,3 +170,29 @@ describe('config files and placeholders', () => {
     assert.ok(list.includes('/x/proxmox-mcp/.env'));
   });
 });
+
+describe('plugin options', () => {
+  it('maps CLAUDE_PLUGIN_OPTION_* onto PROXMOX_* without overriding explicit values', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pmcp-opt-'));
+    const env: NodeJS.ProcessEnv = {
+      XDG_CONFIG_HOME: dir,
+      CLAUDE_PLUGIN_OPTION_HOST: '192.168.1.21',
+      CLAUDE_PLUGIN_OPTION_TOKEN_ID: 'root@pam!mcp',
+      CLAUDE_PLUGIN_OPTION_TOKEN_SECRET: 's3cret',
+      CLAUDE_PLUGIN_OPTION_VERIFY_SSL: 'false',
+      CLAUDE_PLUGIN_OPTION_READ_ONLY: 'true',
+      CLAUDE_PLUGIN_OPTION_MODULES: '',
+      PROXMOX_READ_ONLY: 'false',
+    };
+    loadEnvFiles(env, dir);
+    assert.strictEqual(env.PROXMOX_HOST, '192.168.1.21');
+    assert.strictEqual(env.PROXMOX_TOKEN_NAME, 'root@pam!mcp');
+    assert.strictEqual(env.PROXMOX_TOKEN_VALUE, 's3cret');
+    assert.strictEqual(env.PROXMOX_VERIFY_SSL, 'false');
+    assert.strictEqual(env.PROXMOX_READ_ONLY, 'false', 'explicit PROXMOX_* wins');
+    assert.ok(!('PROXMOX_MODULES' in env), 'empty option ignored');
+    const c = loadConfig(env, []);
+    assert.strictEqual(c.user, 'root@pam');
+    assert.strictEqual(c.tokenName, 'mcp');
+  });
+});

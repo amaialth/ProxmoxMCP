@@ -3,6 +3,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] — 2026-11-19
+
+### Added
+- **HTTP mode on Node.js.** `npx @amailath/proxmox-mcp-server` (without `--stdio`) now serves Streamable HTTP at `/mcp` on Node 20+, not just Bun.
+- **Docker:** `Dockerfile` and `docker-compose.yml` for self-hosting the server (installs the pinned npm package; listens on `127.0.0.1:3000` behind your tunnel or proxy).
+- **`homelab-proxmox` plugin** for Anthropic's plugin directory. It connects to a self-hosted server over HTTPS (settings: server URL + access token, stored securely) and works in claude.ai as well as Claude Code and desktop. It has the same four skills, with a setup skill for self-hosting.
+- **Plugin settings via `CLAUDE_PLUGIN_OPTION_*`:** the server maps `CLAUDE_PLUGIN_OPTION_HOST`, `_TOKEN_ID`, `_TOKEN_SECRET`, `_VERIFY_SSL`, `_READ_ONLY` and `_MODULES` onto the matching `PROXMOX_*` settings. Explicit `PROXMOX_*` values win.
+- `PRIVACY.md`.
+
+### Changed
+- **`proxmox` plugin 0.2.0:** passes its settings as `CLAUDE_PLUGIN_OPTION_*` variables and pins the server to `2.1.0`. It stays in this repo's marketplace: Anthropic's directory only lists plugins that run a local server from Verified organizations.
+- Plugin marketplace now lists both plugins.
+
 ## [2.0.1] — 2026-11-19
 
 ### Changed
