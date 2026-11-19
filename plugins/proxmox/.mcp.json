@@ -2,7 +2,7 @@
   "mcpServers": {
     "proxmox": {
       "command": "npx",
-      "args": ["-y", "@amailath/proxmox-mcp-server@2.0.0", "--stdio"],
+      "args": ["-y", "@amailath/proxmox-mcp-server@2.0.1", "--stdio"],
       "env": {
         "PROXMOX_HOST": "${user_config.host}",
         "PROXMOX_TOKEN_NAME": "${user_config.token_id}",

@@ -1,7 +1,7 @@
 # Proxmox VE MCP Server
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge" alt="v2.0.0">
+  <img src="https://img.shields.io/badge/version-2.0.1-blue?style=for-the-badge" alt="v2.0.1">
   <img src="https://img.shields.io/badge/tools-324-orange?style=for-the-badge" alt="324 tools">
   <img src="https://img.shields.io/badge/runtime-Bun%20%7C%20Node%2020%2B-black?style=for-the-badge" alt="Bun or Node 20+">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=for-the-badge" alt="MIT">
@@ -495,7 +495,7 @@ Or in Cursor, VS Code, Windsurf and others that accept a URL:
    PROXMOX_HOST=192.168.1.21 PROXMOX_TOKEN_NAME=mcp PROXMOX_TOKEN_VALUE=… \
      /ABS/PATH/TO/bun run /ABS/PATH/TO/ProxmoxMCP/src/index.ts --stdio
    ```
-   It should print something like `[Proxmox MCP] v2.0.0 stdio server running (324 tools, host 192.168.1.21).` to stderr and wait. Any configuration it had to correct is printed above that line. Press Ctrl-C to stop it.
+   It should print something like `[Proxmox MCP] v2.0.1 stdio server running (324 tools, host 192.168.1.21).` to stderr and wait. Any configuration it had to correct is printed above that line. Press Ctrl-C to stop it.
 3. **In your client**, ask: *"Use the Proxmox tools to get the version and list nodes."* You should see `get_version` and `list_nodes` succeed.
 4. **Permissions:** ask for *"cluster status"*. A `Sys.Audit` error means the token needs `PVEAuditor` (see [Privilege Separation](#️-privilege-separation)).
 
