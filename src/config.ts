@@ -32,7 +32,29 @@ export function configFileCandidates(env: NodeJS.ProcessEnv = process.env, cwd: 
  * MCP clients pass when an optional plugin setting was left blank.
  * Returns the files that were loaded.
  */
+/**
+ * Plugin settings (userConfig) reach the server as CLAUDE_PLUGIN_OPTION_<KEY>.
+ * Map them onto the PROXMOX_* names. An explicit PROXMOX_* value wins.
+ */
+export const PLUGIN_OPTION_ALIASES: Record<string, string> = {
+  CLAUDE_PLUGIN_OPTION_HOST: 'PROXMOX_HOST',
+  CLAUDE_PLUGIN_OPTION_PORT: 'PROXMOX_PORT',
+  CLAUDE_PLUGIN_OPTION_TOKEN_ID: 'PROXMOX_TOKEN_NAME',
+  CLAUDE_PLUGIN_OPTION_TOKEN_SECRET: 'PROXMOX_TOKEN_VALUE',
+  CLAUDE_PLUGIN_OPTION_VERIFY_SSL: 'PROXMOX_VERIFY_SSL',
+  CLAUDE_PLUGIN_OPTION_READ_ONLY: 'PROXMOX_READ_ONLY',
+  CLAUDE_PLUGIN_OPTION_MODULES: 'PROXMOX_MODULES',
+};
+
+export function applyPluginOptions(env: NodeJS.ProcessEnv = process.env): void {
+  for (const [option, target] of Object.entries(PLUGIN_OPTION_ALIASES)) {
+    const value = env[option];
+    if (!isUnsetValue(value) && isUnsetValue(env[target])) env[target] = value;
+  }
+}
+
 export function loadEnvFiles(env: NodeJS.ProcessEnv = process.env, cwd: string = process.cwd()): string[] {
+  applyPluginOptions(env);
   const loaded: string[] = [];
   for (const file of configFileCandidates(env, cwd)) {
     if (!existsSync(file)) continue;

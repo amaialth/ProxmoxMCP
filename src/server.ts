@@ -157,14 +157,63 @@ export function createElysiaApp() {
   return app;
 }
 
+/** Serve a web-standard fetch handler with node:http (used when not running on Bun). */
+export async function serveWithNode(
+  handler: (request: Request) => Promise<Response> | Response,
+  hostname: string,
+  port: number
+): Promise<import('node:http').Server> {
+  const http = await import('node:http');
+  const server = http.createServer(async (req, res) => {
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
+      const body = chunks.length ? Buffer.concat(chunks) : undefined;
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
+        else if (value !== undefined) headers.set(key, value);
+      }
+      const hostHeader = req.headers.host || `${hostname}:${port}`;
+      const request = new Request(`http://${hostHeader}${req.url || '/'}`, {
+        method: req.method,
+        headers,
+        body: body && req.method !== 'GET' && req.method !== 'HEAD' ? body : undefined,
+      });
+      const response = await handler(request);
+      const outHeaders: Record<string, string | string[]> = {};
+      response.headers.forEach((value, key) => {
+        if (key === 'set-cookie') {
+          const existing = outHeaders[key];
+          outHeaders[key] = existing ? ([] as string[]).concat(existing, value) : value;
+        } else {
+          outHeaders[key] = value;
+        }
+      });
+      res.writeHead(response.status, outHeaders);
+      if (response.body) {
+        const reader = response.body.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(Buffer.from(value));
+        }
+      }
+      res.end();
+    } catch (err: any) {
+      if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: err?.message || String(err) }));
+    }
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, hostname, () => resolve());
+  });
+  return server;
+}
+
 export async function startHttpServer(): Promise<void> {
   const config = getConfig();
-
-  if (typeof (globalThis as any).Bun === 'undefined') {
-    throw new Error(
-      'HTTP mode requires the Bun runtime. Run with `bun run src/index.ts`, or use stdio mode (--stdio), which works on Node too.'
-    );
-  }
 
   if (!isLoopback(config.serverHost) && !config.authToken && !config.allowUnauthenticated) {
     throw new Error(
@@ -174,11 +223,19 @@ export async function startHttpServer(): Promise<void> {
   }
 
   const app = createElysiaApp();
-  app.listen({ hostname: config.serverHost, port: config.serverPort }, ({ hostname, port }) => {
+  const announce = (hostname: string, port: number) => {
     const base = `http://${hostname}:${port}`;
-    console.error(`🚀 Proxmox MCP Server v${VERSION} (HTTP) on ${base}`);
+    console.error(`🚀 Proxmox MCP Server v${VERSION} (HTTP, ${typeof (globalThis as any).Bun !== 'undefined' ? 'Bun' : 'Node'}) on ${base}`);
     console.error(`🔌 MCP endpoint (Streamable HTTP): ${base}/mcp`);
     console.error(`📊 Health: ${base}/health   🛠️ Tools: ${base}/api/tools`);
     console.error(config.authToken ? '🔒 Bearer authentication enabled.' : '⚠️  No authentication (loopback only).');
-  });
+  };
+
+  if (typeof (globalThis as any).Bun !== 'undefined') {
+    app.listen({ hostname: config.serverHost, port: config.serverPort }, ({ hostname, port }) => announce(String(hostname), Number(port)));
+    return;
+  }
+
+  await serveWithNode((request) => app.handle(request), config.serverHost, config.serverPort);
+  announce(config.serverHost, config.serverPort);
 }

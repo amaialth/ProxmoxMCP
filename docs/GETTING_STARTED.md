@@ -67,7 +67,7 @@ bun run src/index.ts --stdio
 You should see on stderr:
 
 ```
-[Proxmox MCP] v2.0.1 stdio server running (324 tools, host 192.168.1.21).
+[Proxmox MCP] v2.1.0 stdio server running (324 tools, host 192.168.1.21).
 ```
 
 Any value the server had to correct, such as a URL in `PROXMOX_HOST`, is reported above that line. Press Ctrl-C to stop.
